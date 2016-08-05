@@ -12,3 +12,7 @@ df=pd.DataFrame({'key':np.arange(5),'value':[np.nan,'a','b','c',np.nan]})
 ser=pd.Series({'Ohio': 35000, 'Texas': 71000, 'Oregon': 16000, 'Utah': 5000})
 
 ser=ser.map(lambda x:x+0.5)
+
+frame = pd.DataFrame(np.random.randn(4, 3), columns=list('bde'),index=['Utah', 'Ohio', 'Texas', 'Oregon'])
+
+f = lambda x: x.max() - x.min()
