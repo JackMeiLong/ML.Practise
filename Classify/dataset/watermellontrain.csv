@@ -1,0 +1,12 @@
+color,root,knocks,texture,navel,touch,label
+darkgreen,curlup,littleheavily,distinct,sinking,hardsmooth,YES
+black,curlup,heavily,distinct,sinking,hardsmooth,YES
+black,curlup,littleheavily,distinct,sinking,hardsmooth,YES
+darkgreen,littlecurlup,littleheavily,distinct,littlesinking,softstick,YES
+black,littlecurlup,littleheavily,littleblur,littlesinking,softstick,YES
+darkgreen,stiff,clear,distinct,even,softstick,NO
+lightwhite,littlecurlup,heavily,littleblur,sinking,hardsmooth,NO
+black,littlecurlup,littleheavily,distinct,littlesinking,softstick,NO
+lightwhite,curlup,littleheavily,blur,even,hardsmooth,NO
+darkgreen,curlup,heavily,littleblur,littlesinking,hardsmooth,NO
+darkgreen,curlup,heavily,distinct,sinking,hardsmooth,YES
