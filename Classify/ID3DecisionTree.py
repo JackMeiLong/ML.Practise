@@ -16,6 +16,7 @@ class ID3DecisionTree(object):
     
     def __init__(self):
         self.train=[]
+        self.train_df=[]
         self.label=[]
         self.test=[]
         self.features=[]
@@ -26,6 +27,7 @@ class ID3DecisionTree(object):
         df=pd.read_csv(path)
         self.features=df.columns.tolist()[:-1]
         self.train=df.values[:,:-1]
+        self.train_df=df.drop(['label'],axis=1)
         self.label=df.values[:,-1]
         self.dataset=df.values
       
@@ -33,13 +35,15 @@ class ID3DecisionTree(object):
         tree={}
         features=copy.copy(features)
         bestfeature,bestindex=self.SelectBestFeature(dataset,features)
-        bestvalue=set(dataset[:,bestindex])       
+        bestvalue=set(dataset[:,bestindex])
+        bestvalue_full=set(self.train_df[bestfeature].values.tolist())
         features.append('class')
         dataset=pd.DataFrame(dataset,columns=features)
         tree[bestfeature]={}
         print 'BestFeature: {0}'.format(bestfeature)
         
         for t in bestvalue:
+            bestvalue_full.remove(t)
             subdata=dataset[dataset[bestfeature]==t].drop([bestfeature],axis=1).values
             features=dataset[dataset[bestfeature]==t].drop([bestfeature],axis=1).columns.tolist()[:-1]
             if len(set(subdata[:,-1]))==1:
@@ -48,6 +52,10 @@ class ID3DecisionTree(object):
                 tree[bestfeature][t]=self.SelectBestLabel(subdata)
             else:
                 tree[bestfeature][t]=self.BuildTree(subdata,features)
+        
+        for t in bestvalue_full:
+            tree[bestfeature][t]=self.SelectBestLabel(dataset.values)
+        
         self.tree=tree        
         return tree       
         
@@ -72,7 +80,7 @@ class ID3DecisionTree(object):
                  subdata=data_df[data_df[j]==t3].values
                  info_dict[features[j]]=info_dict[features[j]]+(self.CalcuteEntropy(subdata))*(temp_dict[t3]/m)
             
-             info_dict[features[j]]=info-info_dict[features[j]]
+             info_dict[features[j]]=info-round(info_dict[features[j]],3)
         
         bestfeature=sorted(info_dict.items(), lambda x, y: cmp(x[1], y[1]))[-1][0]
         bestindex=features.index(bestfeature)
@@ -93,10 +101,10 @@ class ID3DecisionTree(object):
         entropy=0
         for k,v in label_dict.iteritems():
             p=v/m
-            entropy=entropy+p*math.log(p)
+            entropy=entropy+p*math.log(p,2)
         
         entropy=-1*entropy
-        return entropy
+        return round(entropy,3)
         
     def SelectBestLabel(self,subdata):
         tarray=subdata[:,-1]
@@ -128,10 +136,10 @@ class ID3DecisionTree(object):
                     res=self.predict(inX,tree)
         return res   
             
-path='./dataset/lenses.csv'
+path='./dataset/watermellontrain.csv'
 id3=ID3DecisionTree()
 id3.loaddataset(path)
 tree=id3.BuildTree(id3.dataset,id3.features)
-inX=[['presbyopic','hyper','no','normal']]
-y_pred=id3.predict(inX,tree)
-print 'inX:{0} ; y_pred: {1}'.format(inX,y_pred)
+#inX=[['presbyopic','hyper','no','normal']]
+#y_pred=id3.predict(inX,tree)
+#print 'inX:{0} ; y_pred: {1}'.format(inX,y_pred)
