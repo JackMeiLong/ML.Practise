@@ -136,10 +136,10 @@ class ID3DecisionTree(object):
                     res=self.predict(inX,tree)
         return res   
             
-path='./dataset/watermellontrain.csv'
+path='./dataset/lenses.csv'
 id3=ID3DecisionTree()
 id3.loaddataset(path)
 tree=id3.BuildTree(id3.dataset,id3.features)
-#inX=[['presbyopic','hyper','no','normal']]
-#y_pred=id3.predict(inX,tree)
-#print 'inX:{0} ; y_pred: {1}'.format(inX,y_pred)
+inX=[['presbyopic','hyper','no','normal']]
+y_pred=id3.predict(inX,tree)
+print 'inX:{0} ; y_pred: {1}'.format(inX,y_pred)

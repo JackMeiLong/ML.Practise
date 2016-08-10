@@ -141,4 +141,3 @@ y_pred=np.zeros((np.shape(inX)[0],1),dtype='str')
 
 for i in range(np.shape(inX)[0]):
     y_pred[i]=c45.predict(inX[i],tree)
-
