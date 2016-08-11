@@ -6,74 +6,73 @@ Created on Thu Jan 21 14:15:34 2016
 
 Logistic Regression
 
-
+http://blog.csdn.net/Fishmemory/article/details/51603836
 
 """
 
-from numpy import *
+import numpy as np
+import pandas as pd
 import math
-import sys
-import io
 
 class LogisticRegression(object):
     
-    #Constructor
     def __init__(self):
-        self.trainset=[]
-        self.trainlabel=[]
+        self.train=[]
+        self.train_label=[]
+        self.train_df=[]
         self.weight=[]
-        self.ratio=0.01
-        self.maxcycle=10
+        self.ratio=0.001
+        self.maxcycle=500
+        self.test=[]
+        self.test_label=[]
+        self.features=[]
     
-    #Load TrainData
     def loaddataset(self,path):
-        fp=open(path,'rb')
-        content=fp.read()
-        fp.close()
-        rowlist=content.splitlines()
-        dataset=[row.split('\t') for row in rowlist if row.strip()]
-        dataset=mat(dataset)
-        return dataset
-    #file to matrix
-    def file2matrix(self,dataset):
-        m,n=shape(dataset)
-        trainset=zeros((m,n-1))
-        trainlabel=zeros((m,1))
-        for i in xrange(m):
-            for j in xrange(n-1):
-                trainset[i][j]=float(dataset[i][j])
-            trainlabel[i][0]=float(dataset[i][n-1])
-        self.trainset=trainset
-        self.trainlabel=trainlabel
-        
-    #Sigmod Function
-    def Sigmod(self,inX,weight):
-        result=1/(1+exp(-1*inX*weight))
-        return result
-        
-    #calculate weight
+        df=pd.read_csv(path)
+        m=np.shape(df.values)[0]
+        self.train=df.values[:,:-1]
+        self.train_label=df.values[:,-1]
+        self.train_df=df[:int(0.7*m)]
+        self.test=df.values[0.7*m:,:-1]
+        self.test_label=df.values[0.7*m:,-1]
+               
     def calweight(self):
-        m,n=shape(self.trainset)
-        weight=ones((n,1))
+        m,n=np.shape(self.train)
+        weight=np.ones((n))
+        label=self.train_label
+        train=self.train
         
         for i in xrange(self.maxcycle):
-            weight=weight+self.ratio*mat(self.trainset).T*(self.trainlabel-self.Sigmod(self.trainset,weight))
+            weight=weight+self.getgradient(train,weight,label).dot(self.ratio)
             
         self.weight=weight
-    
-    #calssify inX : column vector
-    def Classify(self,inX):
-        if shape(inX)[0]==shape(self.weight)[0]:
-            outY=mat(inX).T*self.weight
-        else:
-            print 'the dimension of inX is not correct'
-
-
+        return weight
+        
+    def getgradient(self,train,weight,label):
+        gradient=0    
+        
+        for i in range(np.shape(train)[0]):
+            gradient=gradient+train[i].dot(label[i]-self.logisticfunc(train[i,:],weight))
+            
+        return gradient
+        
+    def get_stochasticgradient(self,train,weight,label):
+        gradient=0    
+        
+        for i in range(np.shape(train)[0]):
+            gradient=gradient+train[i].dot(label[i]-self.logisticfunc(train[i,:],weight))
+            
+        return gradient
+        
+    def logisticfunc(self,inX,weight):
+        
+        res=np.exp(inX.dot(weight))/float(1+np.exp(inX.dot(weight)))
+        return res
+        
 LR=LogisticRegression()
-path='testSet.txt'
-dataset=LR.loaddataset()
-LR.file2matrix(dataset)
-LR.calweight()
+path='./dataset/LRDataSet.csv'
+LR.loaddataset(path)
+weight=LR.calweight()
 
 #LR.Classify(inX)
 
