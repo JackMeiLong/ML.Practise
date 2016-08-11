@@ -6,12 +6,11 @@ Created on Sun Jun 12 18:55:51 2016
 
 Naive Bayes
 
-教育,政治上的反复无常,的话题,据当地媒体营业额和地方,政治和社会空间
+教育,政治上的反复无常,话题,据当地媒体营业额和地方,政治和社会空间
 
+http://archive.ics.uci.edu/ml/datasets/BLOGGER
 """
-
 import numpy as np
-import math
 import pandas as pd
 
 class NaiveBayes(object):
@@ -30,7 +29,7 @@ class NaiveBayes(object):
         m=np.shape(df.values)[0]
         self.train=df.values[:0.7*m,:-1]
         self.train_label=df.values[:0.7*m,-1]
-        self.train_df=df
+        self.train_df=df[:int(0.7*m)]
         self.test=df.values[0.7*m:,:-1]
         self.test_label=df.values[0.7*m:,-1]
     
@@ -52,18 +51,18 @@ class NaiveBayes(object):
         
         for i in label_set:
             num=1            
-            temp=train_df[train_df[feaures[-1]]==i].values
-            num_label=np.shape(temp)[0]
-            num_value=0.1
+            temp=train_df[train_df[features[-1]]==i]
+            num_label=np.shape(temp.values)[0]
+            
             for j in range(np.shape(features)[0]-1):
-                temp1=temp[temp[features[features[j]]==inX[j]].values
-                num_value=np.shape(temp1)[0]
-                prob=num_value/num_label
+                temp1=temp[temp[features[j]]==inX[j]]
+                num_value=np.shape(temp1.values)[0]
+                prob=num_value/float(num_label)
                 num=num*prob
             
             label_dict[i]=label_dict[i]*num
         
-        bestlabel=sorted(label_dict.items,lambda x,y:cmp(x[1],y[1]))[-1][0]
+        bestlabel=sorted(label_dict.iteritems(),lambda x,y:cmp(x[1],y[1]))[-1][0]
         return bestlabel
     
     def predict(self,inX):
@@ -74,8 +73,14 @@ class NaiveBayes(object):
 path='./dataset/blogger.csv'
 nb=NaiveBayes()
 nb.loaddata(path)
-inX=nb.test[0,:]
 
-y_pred=nb.predict(inX)
+inX=nb.test
+y_true=nb.test_label
+y_pred=['']*np.shape(inX)[0]
 
-        
+for i in range(np.shape(inX)[0]):
+    y_pred[i]=nb.predict(inX[i,:])
+
+num=list(y_pred==y_true).count(True)
+
+accuracy=num/float(np.shape(y_true)[0])
