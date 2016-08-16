@@ -7,6 +7,7 @@ Created on Thu Jan 21 14:15:34 2016
 Logistic Regression
 
 http://blog.csdn.net/Fishmemory/article/details/51603836
+http://openclassroom.stanford.edu/MainFolder/DocumentPage.php?course=DeepLearning&doc=exercises/ex4/ex4.html
 
 Newton Method for Logistic Regression
 """
@@ -21,7 +22,7 @@ class LogisticRegression(object):
         self.train_label=[]
         self.train_df=[]
         self.weight=[]
-        self.maxcycle=10
+        self.maxcycle=7
         self.test=[]
         self.test_label=[]
         self.features=[]
@@ -29,7 +30,7 @@ class LogisticRegression(object):
     def loaddataset(self,path):
         df=pd.read_csv(path)
         m=np.shape(df.values)[0]
-        x0=pd.DataFrame([1]*m,columns=['Feature0'])
+        x0=pd.DataFrame([1]*m,columns=['Feat0'])
         self.train=pd.concat([x0,df],axis=1).values[:,:-1]
         self.train_label=df.values[:,-1]
                
@@ -42,7 +43,7 @@ class LogisticRegression(object):
         for i in xrange(self.maxcycle):
             gradient=self.get_Gradient(train,weight,label)
             hessematrix=self.get_HesseMatrix(train,weight,label)
-            weight=weight-np.linalg.pinv(hessematrix).dot(gradient)
+            weight=weight-np.linalg.pinv(hessematrix).dot(gradient)           
             
         self.weight=weight
         return weight
@@ -51,25 +52,25 @@ class LogisticRegression(object):
         m=np.shape(train)[0]
         gradient=np.zeros((np.shape(train)[1]))   
         
-        for i in range(np.shape(train)[0]):
-            gradient=gradient+train[i].dot(self.logisticfunc(train[i,:],weight)-label[i])
-            
-        gradient=gradient.dot(1/float(m))
+        for i in range(m):
+            gradient=gradient+train[i,:].dot(self.logisticfunc(train[i,:],weight)-label[i])
         
+        gradient=gradient.dot(1/float(m))
         return gradient
         
     def get_HesseMatrix(self,train,weight,label):
+        m=np.shape(train)[1]
         n=np.shape(train)[0]
-        m=np.shape(weight)[0]        
         hessematrix=np.zeros((m,m))
         
         for i in range(m):
             for j in range(m):
-                for t in range(m):
+                for t in range(n):
                     hessematrix[i][j]=hessematrix[i][j]+train[t][i]*train[t][j]*\
                     self.logisticfunc(train[t],weight)*(1-self.logisticfunc(train[t],weight))                   
         
         hessematrix=hessematrix.dot(1/float(n))
+        
         return hessematrix
         
     def logisticfunc(self,inX,weight):
@@ -85,6 +86,12 @@ LR=LogisticRegression()
 path='./dataset/LRDataSet2.csv'
 LR.loaddataset(path)
 weight=LR.calweight()
+
+#from sklearn.linear_model import LogisticRegression
+#sk_lr=LogisticRegression(solver='newton-cg')
+#train=LR.train
+#label=LR.train_label
+#sk_lr.fit(train,label)
 
 #LR.Classify(inX)
 
