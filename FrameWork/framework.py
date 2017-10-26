@@ -27,7 +27,7 @@ from sklearn.decomposition import PCA
 
 '''
 FrameWork_v1.py
-1:preprocess(objet->onehot,float->encode,add symbol)
+1:preprocess(objet->onehot,float->scaler,add symbol feature)
 2:feature_selection_v1(VarianceThreshold)
 3:feature_selection_v2(Chi2,F-test,Mutual Info)
 4:dimension_reduce(PCA,LDA)
