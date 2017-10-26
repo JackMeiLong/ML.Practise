@@ -27,7 +27,11 @@ from sklearn.decomposition import PCA
 
 '''
 FrameWork_v1.py
-+feature_transform(GBDT)
+1:preprocess(objet->onehot,float->encode,add symbol)
+2:feature_selection_v1(VarianceThreshold)
+3:feature_selection_v2(Chi2,F-test,Mutual Info)
+4:dimension_reduce(PCA,LDA)
+5:feature_transform(GBDT+LR) coming soon
 
 '''
 
