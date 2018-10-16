@@ -373,7 +373,6 @@ class Cash:
 
         label = label.reshape(label.shape[0])   
         
-        '''
         gs.fit(data, label)
         
         print 'Model: {0} '.format(model)
@@ -385,10 +384,6 @@ class Cash:
         print 'End:' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') 
         
         best_params=gs.best_params_
-        '''
-        
-        if model.upper()=='LR':
-            best_params={'penalty':'l1','C':0.5,'class_weight':'balanced'}
 
         auc_test=None
         
