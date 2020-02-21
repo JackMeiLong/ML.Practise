@@ -1,0 +1,144 @@
+import pandas as pd
+import numpy as np
+import datetime
+import pickle
+import platform
+import copy
+
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.cross_validation import cross_val_score
+
+from sklearn.metrics import roc_auc_score
+from matplotlib import pyplot as plt
+from sklearn.model_selection import GridSearchCV
+from sklearn.feature_selection import VarianceThreshold
+from sklearn.preprocessing import Imputer
+from sklearn.feature_selection import f_classif
+from sklearn.feature_selection import mutual_info_classif
+from sklearn.feature_selection import chi2
+from sklearn.feature_selection import SelectPercentile
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix,precision_score,recall_score
+from sklearn.metrics import log_loss
+from sklearn.externals import joblib
+import lightgbm as lgb
+
+from sklearn.cross_validation import StratifiedKFold
+
+import warnings
+warnings.filterwarnings('ignore')
+
+data_path='/root/meilong/Henan/V2'
+
+print('Load...')
+print('Start: '+datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
+raw_data=pd.read_csv(data_path+'/data_v15.csv')
+raw_features=raw_data.columns.tolist()
+
+data=raw_data.copy()
+
+#教育程度
+data['EDU_LEVEL']=data['EDU_LEVEL'].apply(lambda x:str(int(x)) if ~np.isnan(x) else x)
+#SEX 
+data['SEX']=data['SEX'].apply(lambda x:str(int(x)) if ~np.isnan(x) else x)
+data['CUSTOMER_KIND']=data['CUSTOMER_KIND'].apply(lambda x:str(int(x)) if ~np.isnan(x) else x)
+data['WITNESS_CHANNEL_TYPE']=data['WITNESS_CHANNEL_TYPE'].apply(lambda x:str(int(x)) if ~np.isnan(x) else x)
+data['REGISTFUND']=data['REGISTFUND'].apply(lambda x:str(int(x)) if ~np.isnan(x) else x)
+data['RISK_LEVEL'] = data['RISK_LEVEL'].astype('object')
+
+#BAL_RANGE_ID
+feas = [x for x in data.columns.tolist() if 'BAL_RANGE_ID' in x]
+data[feas] = data[feas].astype('object')
+label=data[['CUSTOMER_NO','Label']]
+data.drop(['Label'],axis=1,inplace=True)
+
+print('End: '+datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
+category_feas = [x for x in data.columns if data[x].dtype=='object' and x!='CUSTOMER_NO']
+continuous_feas = [x for x in data.columns if data[x].dtype!='object']
+
+for x in continuous_feas:
+    if data[x].hasnans == True:
+        data[x].fillna(0,inplace=True)
+
+for x in category_feas:
+    if data[x].hasnans == True:
+        data[x].fillna('0',inplace=True)
+                                                                                                                                                                     %
+data['RISK_LEVEL'] = data['RISK_LEVEL'].apply(lambda x:int(x))
+
+for x in category_feas:
+    enc = LabelEncoder()
+    data[x] = enc.fit_transform(data[x])
+
+clfs = [
+    RandomForestClassifier(n_estimators=10, max_depth=10,max_features=10, criterion='entropy'),
+    GradientBoostingClassifier(n_estimators=10, learning_rate=0.001, max_depth=10),
+    AdaBoostClassifier(n_estimators=700, learning_rate=0.001),
+    ExtraTreesClassifier(n_estimators=1000, n_jobs=-1, criterion='gini')
+        ]
+
+x_train, x_test, y_train, y_test = train_test_split(data, label, test_size=0.33)
+
+x_train.drop('CUSTOMER_NO',axis=1,inplace=True)
+x_train = x_train.values
+y_train.drop('CUSTOMER_NO',axis=1,inplace=True)
+y_train = y_train['Label'].values.copy()
+
+x_test.drop('CUSTOMER_NO',axis=1,inplace=True)
+x_test = x_test.values
+y_test.drop('CUSTOMER_NO',axis=1,inplace=True)
+y_test = y_test['Label'].values.copy()
+
+new_x_train = np.zeros((x_train.shape[0], len(clfs)))
+new_x_test = np.zeros((x_test.shape[0], len(clfs)))
+
+n_folds = 5
+skf = list(StratifiedKFold(y_train, n_folds))
+
+for j, clf in enumerate(clfs):
+    '''依次训练各个单模型'''
+    print(j, clf)
+
+    new_x_train_sub = np.zeros((x_train.shape[0],len(skf)))
+    new_x_test_sub = np.zeros((x_test.shape[0], len(skf)))
+
+    for i, (train, evalu) in enumerate(skf):
+        print("Fold", i)
+        temp_x_train, temp_y_train, temp_x_eval, temp_y_eval = x_train[train], y_train[train], x_train[evalu], y_train[evalu]
+
+        clf.fit(temp_x_train, temp_y_train)
+        y_sub = clf.predict_proba(temp_x_train)[:, 1]
+        print(roc_auc_score(temp_y_train, y_sub))
+        y_sub = clf.predict_proba(temp_x_eval)[:, 1]
+        print(roc_auc_score(temp_y_eval, y_sub))
+        new_x_train_sub[:,i] = clf.predict_proba(x_train)[:,1]
+        new_x_test_sub[:, i] = clf.predict_proba(x_test)[:, 1]
+    '''对于测试集，直接用这k个模型的预测值均值作为新的特征。'''
+    new_x_train[:,j] = new_x_train_sub.mean(axis=1)
+    new_x_test[:, j] = new_x_test_sub.mean(axis=1)
+
+    print("train auc Score: %f" % roc_auc_score(y_train, new_x_train[:, j]))
+    print("test auc Score: %f" % roc_auc_score(y_test, new_x_test[:, j]))
+
+clf = LogisticRegression(penalty='l2',C=0.01)
+
+clf.fit(new_x_train, y_train)
+
+print("blend result")
+y_sub = clf.predict_proba(new_x_train)[:, 1]
+print("test auc Score: %f" % (roc_auc_score(y_train, y_sub)))
+
+y_sub = clf.predict_proba(new_x_test)[:, 1]
+print("test auc Score: %f" % (roc_auc_score(y_test, y_sub)))
