@@ -1,0 +1,206 @@
+
+import pandas as pd
+import numpy as np
+import datetime
+import pickle
+import platform
+import copy
+
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.cross_validation import cross_val_score
+
+from sklearn.metrics import roc_auc_score
+from matplotlib import pyplot as plt
+from sklearn.model_selection import GridSearchCV
+from sklearn.feature_selection import VarianceThreshold
+from sklearn.preprocessing import Imputer
+from sklearn.feature_selection import f_classif
+from sklearn.feature_selection import mutual_info_classif
+from sklearn.feature_selection import chi2
+from sklearn.feature_selection import SelectPercentile
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix,precision_score,recall_score
+from sklearn.metrics import log_loss
+from sklearn.externals import joblib
+import lightgbm as lgb
+
+import warnings
+warnings.filterwarnings('ignore')
+
+#数据加载
+data,label = hn.load()
+
+category_feas = [x for x in data.columns if data[x].dtype=='object' and x!='CUSTOMER_NO']
+continuous_feas = [x for x in data.columns if data[x].dtype!='object']
+
+feas = data.columns.tolist()
+feas.remove('CUSTOMER_NO')
+
+for x in continuous_feas:
+    if data[x].hasnans == True:
+        data[x].fillna(0,inplace=True)
+
+for x in category_feas:
+    if data[x].hasnans == True:
+        data[x].fillna('0',inplace=True)
+
+data['RISK_LEVEL'] = data['RISK_LEVEL'].apply(lambda x:int(x))
+
+for x in category_feas:
+    enc = LabelEncoder()
+    data[x] = enc.fit_transform(data[x])
+
+train,test,train_label,test_label = train_test_split(data, label, test_size=0.33)
+train.reset_index(drop=True,inplace=True)
+train_label.reset_index(drop=True,inplace=True)
+
+test.reset_index(drop=True,inplace=True)
+test_label.reset_index(drop=True,inplace=True)
+
+gbm = lgb.LGBMClassifier(objective='binary',
+                            subsample= 0.8,
+                            min_child_weight= 0.5,
+                            colsample_bytree= 0.7,
+                            num_leaves=20,
+                            max_depth = 70,
+                            learning_rate=0.001,
+                            n_estimators=500,
+                            )
+x_train = train.copy()
+x_train.drop('CUSTOMER_NO',axis=1,inplace=True)
+x_train.reset_index(inplace=True,drop=True)
+y_train = train_label.copy()
+y_train.drop('CUSTOMER_NO',axis=1,inplace=True)
+y_train.reset_index(inplace=True,drop=True)
+
+x_test = test.copy()
+x_test.drop('CUSTOMER_NO',axis=1,inplace=True)
+x_test.reset_index(inplace=True,drop=True)
+y_test = test_label.copy()
+y_test.drop('CUSTOMER_NO',axis=1,inplace=True)
+y_test.reset_index(inplace=True,drop=True)
+
+gbm.fit(x_train, y_train,
+            eval_set = [(x_train, y_train), (x_test, y_test)],
+            eval_names = ['train', 'test'],
+            eval_metric = 'auc',
+            early_stopping_rounds = 100,
+            categorical_feature = category_feas
+            )
+
+model = gbm.booster_
+fea_imp = pd.DataFrame()
+fea_imp['feas'] = x_train.columns.tolist()
+fea_imp['imp'] = model.feature_importance()
+
+fea_imp = fea_imp.sort_values('imp',ascending=False)
+fea_imp.reset_index(inplace=True,drop=True)
+print(fea_imp[:30])
+
+print('GBM')
+df = pd.DataFrame()
+df['Proba'] = gbm.predict_proba(x_test)[:,1]
+df['Label'] = y_test['Label'].copy()
+df = df.sort_values('Proba',ascending=False)
+df.reset_index(drop=True,inplace=True)
+
+gbm_feas_train = model.predict(x_train,pred_leaf = True)
+gbm_feas_test = model.predict(x_test,pred_leaf = True)
+
+gbm_feas = ['gbm_tree_' + str(i) for i in range(gbm_feas_train.shape[1])]
+
+gbm_feas_train = pd.DataFrame(gbm_feas_train,columns=gbm_feas)
+gbm_feas_test = pd.DataFrame(gbm_feas_test,columns=gbm_feas)
+
+#所有树的叶子节点整体OneHot编码
+#**
+tmp_train = np.zeros([gbm_feas_train.shape[0],gbm.best_iteration_*gbm.num_leaves],dtype=np.int64)
+
+for i in gbm_feas_train.index:
+    ind = np.arange(gbm.best_iteration_)*gbm.num_leaves + gbm_feas_train.loc[i]
+    tmp_train[i][ind] = 1
+
+gbm_feas_train = pd.DataFrame(tmp_train,columns=list(map(lambda x:'gbm_leaf_{0}'.format(x),range(gbm.best_iteration_*gbm.num_leaves))))
+
+tmp_test = np.zeros([gbm_feas_test.shape[0],gbm.best_iteration_*gbm.num_leaves],dtype=np.int64)
+
+for i in gbm_feas_test.index:
+    ind = np.arange(gbm.best_iteration_)*gbm.num_leaves + gbm_feas_test.loc[i]
+    tmp_test[i][ind] = 1
+
+gbm_feas_test = pd.DataFrame(tmp_test,columns=list(map(lambda x:'gbm_leaf_{0}'.format(x),range(gbm.best_iteration_*gbm.num_leaves))))
+
+'''
+# 每棵树的叶子节点分别OneHot编码
+for i in gbm_feas:
+    onehot = OneHotEncoder()
+    tt = onehot.fit_transform(gbm_feas_train[i].values.reshape(-1,1))
+    tf = pd.DataFrame(tt.toarray(),columns=list(map(lambda x:'{0}_{1}'.format(i,x),range(tt.shape[1]))))
+    gbm_feas_train = gbm_feas_train.join(tf)
+    gbm_feas_train.drop(i,axis=1,inplace=True)
+
+    tt = onehot.transform(gbm_feas_test[i].values.reshape(-1,1))
+    tf = pd.DataFrame(tt.toarray(),columns=list(map(lambda x:'{0}_{1}'.format(i,x),range(tt.shape[1]))))
+    gbm_feas_test = gbm_feas_test.join(tf)
+    gbm_feas_test.drop(i,axis=1,inplace=True)
+'''
+#feature proess
+raw_x_train = x_train.copy()
+raw_y_train = y_train.copy()
+
+raw_x_test = x_test.copy()
+raw_y_test = y_test.copy()
+
+for col in x_train.columns:
+    if x_train[col].dtype != 'object':
+        scaler = MinMaxScaler()
+        tmp = scaler.fit_transform(x_train[col].values.reshape(-1,1))
+        x_train[col] = tmp
+
+        tmp = scaler.transform(x_test[col].values.reshape(-1,1))
+        x_test[col] = tmp
+
+new_train = pd.concat([x_train, gbm_feas_train],axis=1)
+new_test = pd.concat([x_test, gbm_feas_test],axis=1)
+
+new_data = pd.concat([new_train,new_test])
+new_label = pd.concat([y_train,y_test])
+
+new_x_train = new_data.iloc[:new_train.shape[0]]
+new_y_train = new_label.iloc[:new_train.shape[0]]
+
+new_x_test = new_data.iloc[new_train.shape[0]:]
+new_y_test = new_label.iloc[new_train.shape[0]:]
+
+lr = LogisticRegression(penalty='l1',C=0.05)
+lr.fit(new_x_train, new_y_train)
+
+tr_auc =  roc_auc_score(new_y_train,lr.predict_proba(new_x_train)[:,1])
+print('train-auc: ',tr_auc)
+tr_logloss = log_loss(new_y_train, lr.predict_proba(new_x_train)[:, 1])
+print('train-logloss: ', tr_logloss)
+test_auc =  roc_auc_score(new_y_test,lr.predict_proba(new_x_test)[:,1])
+print('test-auc: ',test_auc)
+test_logloss = log_loss(new_y_test, lr.predict_proba(new_x_test)[:, 1])
+print('test-logloss: ', test_logloss)
+
+print('GBM+LR')
+df = pd.DataFrame()
+df['Proba'] = lr.predict_proba(new_x_test)[:,1]
+df['Label'] = new_y_test['Label'].copy()
+df['LOGIN_SUM_3'] = raw_x_test['LOGIN_SUM_3'].copy()
+df['LOGIN_SUM_6'] = raw_x_test['LOGIN_SUM_6'].copy()
+df['LOGIN_SUM_12'] = raw_x_test['LOGIN_SUM_12'].copy()
+df['LOGIN_SUM_24'] = raw_x_test['LOGIN_SUM_24'].copy()
+
+df = df.sort_values('Proba',ascending=False)
+df.reset_index(inplace=True,drop=True)
